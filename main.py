@@ -10,7 +10,7 @@ def main():
 
     # Initialization
     cap = cv2.VideoCapture(0)
-
+    face_classifier = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 
     # Execution
     while cap.isOpened():
@@ -25,8 +25,14 @@ def main():
         img_gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
 
 
+        # Face detection
+        faces = face_classifier.detectMultiScale(image=img_gray, scaleFactor=1.2, minNeighbors=4, minSize=(70,70))
+        for (x,y,w,h) in faces:
+            cv2.rectangle(img_bgr, (x, y), (x+w, y+h), color=(0, 255, 0), thickness=2)
+
+
         # Visualization
-        cv2.imshow('Camera', img_gray)
+        cv2.imshow('Camera', img_bgr)
 
 
         # Keyboard inputs
