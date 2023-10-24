@@ -4,10 +4,7 @@ import cv2
 import numpy as np
 
 class Tracker():
-    def __init__(self, tracker, initBB, image, name):
-        self.tracker = tracker
-        self.initBB = initBB
-        self.image = image
+    def __init__(self, img_original, name = 'Unknown'):
+        self.img_original = img_original
+        self.img_latest = img_original
         self.name = name
-
-    
