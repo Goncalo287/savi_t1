@@ -6,11 +6,29 @@ import copy
 import tkinter as tk
 from tkinter import simpledialog
 
-def computeIOU(d1, d2):
-    # box1 and box2 should be in the format (x1, y1, x2, y2)
-    x1_1, y1_1, x2_1, y2_1 = d1.left, d1.top, d1.right, d1.bottom
-    x1_2, y1_2, x2_2, y2_2 = d2.left, d2.top, d2.right, d2.bottom
-    
+from track import Tracker
+
+def openInputWindow():
+    '''
+    Opens a window where the user can input text
+    Returns a string or None (if the user cancels)
+    '''
+
+    root = tk.Tk()
+    root.withdraw()
+    user_input = simpledialog.askstring('Set template name', 'Person name:')
+    root.destroy()
+    return user_input
+
+
+def computeIOU(face_box, tracker_box):
+
+
+    x, y, w, h = face_box
+    x1_1, y1_1, x2_1, y2_1 = x, y, x+w, y+h
+    x, y, w, h = tracker_box
+    x1_2, y1_2, x2_2, y2_2 = x, y, x+w, y+h
+
     # Calculate the area of the first bounding box
     area1 = (x2_1 - x1_1) * (y2_1 - y1_1)
     
@@ -36,30 +54,7 @@ def computeIOU(d1, d2):
         return iou
     else:
         return 0.0
-    
-    # # ----------------
-    # # Using IOU
-    # # ----------------
-    # iou = computeIOU(detection, track.detections[-1])
-    # #print('IOU( ' + detection.detection_id + ' , ' + track.track_id + ') = ' + str(iou))
-    # if iou > iou_threshold: # This detection belongs to this tracker!!!
-    #     track.update(detection) # add detection to track
-    #     idxs_detections_to_remove.append(idx_detection)
-    #     break # do not test this detection with any other track
 
-
-
-def openInputWindow():
-    '''
-    Opens a window where the user can input text
-    Returns a string or None (if the user cancels)
-    '''
-
-    root = tk.Tk()
-    root.withdraw()
-    user_input = simpledialog.askstring('Set template name', 'Person name:')
-    root.destroy()
-    return user_input
 
 
 def main():
@@ -68,6 +63,7 @@ def main():
     cap = cv2.VideoCapture(0)
     face_classifier = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
     templates = []  # TODO: open templates saved on disk (add image format to .gitignore)
+    trackers = []
 
 
     # Execution
@@ -83,14 +79,53 @@ def main():
         img_gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
 
 
-        # Face detection
+        # Detect faces
         faces = face_classifier.detectMultiScale(image=img_gray, scaleFactor=1.2, minNeighbors=4, minSize=(70,70))
-        for (x,y,w,h) in faces:
-            cv2.rectangle(img_bgr, (x, y), (x+w, y+h), color=(0, 255, 0), thickness=2)
+
+
+        # Update trackers and compare with detected faces
+        faces_tracked_idx = []
+        for tracker_idx, tracker in enumerate(trackers):
+            success, detection_box = tracker.update(img_bgr)
+
+            if success:
+
+                x, y, w, h = [int(v) for v in detection_box]
+                cv2.rectangle(img_bgr, (x, y), (x + w, y + h), (255, 0, 0), 2)
+                cv2.putText(img_bgr,'Person ' + str(tracker_idx), (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 1, cv2.LINE_AA)
+
+
+                for face_idx, face in enumerate(faces):
+                    iou = computeIOU(face, detection_box)
+                    if iou > 0.1:
+                        faces_tracked_idx.append(face_idx)
+            else:
+                print('failed')
+
+
+        # Create a new tracker for every face that isn't tracked
+        for face_idx, face in enumerate(faces):
+            if face_idx not in faces_tracked_idx:
+
+                '''
+                List of trackers:
+                cv2.TrackerCSRT_create
+                cv2.TrackerKCF_create
+                cv2.TrackerBoosting_create
+                cv2.TrackerMIL_creat,
+                cv2.TrackerTLD_create
+                cv2.TrackerMedianFlow_create
+                cv2.TrackerMOSSE_create
+                '''
+                tracker = cv2.TrackerKCF_create()
+
+                initBB = face
+                tracker.init(img_bgr, initBB)
+                trackers.append(tracker)
 
 
         # Visualization
-        cv2.imshow('Camera', img_bgr)
+        cv2.imshow('Frame', img_bgr)
 
 
         # Keyboard inputs
