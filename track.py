@@ -9,3 +9,5 @@ class Tracker():
         self.initBB = initBB
         self.image = image
         self.name = name
+
+    

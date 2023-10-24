@@ -128,6 +128,8 @@ def main():
                 new_tracker = Tracker(tracker,initBB,img_bgr[y:y+h,x:x+w]," ")
                 trackers.append(new_tracker)
 
+                
+
         # Visualization
         cv2.imshow('Frame', img_bgr)
 
