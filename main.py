@@ -21,13 +21,15 @@ def openInputWindow():
     return user_input
 
 
-def computeIOU(face_box, tracker_box):
+def computeIOU(face_box, tracker_box,image):
+    
 
 
     x, y, w, h = face_box
     x1_1, y1_1, x2_1, y2_1 = x, y, x+w, y+h
     x, y, w, h = tracker_box
     x1_2, y1_2, x2_2, y2_2 = x, y, x+w, y+h
+
 
     # Calculate the area of the first bounding box
     area1 = (x2_1 - x1_1) * (y2_1 - y1_1)
@@ -66,6 +68,7 @@ def main():
     trackers = []
 
 
+
     # Execution
     while cap.isOpened():
 
@@ -76,17 +79,18 @@ def main():
 
         # Image processing
         img_bgr = copy.deepcopy(frame)
+        img_bgr = cv2.flip(img_bgr,1) # mirror image
         img_gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
 
 
         # Detect faces
         faces = face_classifier.detectMultiScale(image=img_gray, scaleFactor=1.2, minNeighbors=4, minSize=(70,70))
 
-
         # Update trackers and compare with detected faces
         faces_tracked_idx = []
         for tracker_idx, tracker in enumerate(trackers):
-            success, detection_box = tracker.update(img_bgr)
+            success, detection_box = tracker.tracker.update(img_bgr)
+        
 
             if success:
 
@@ -96,12 +100,11 @@ def main():
 
 
                 for face_idx, face in enumerate(faces):
-                    iou = computeIOU(face, detection_box)
+                    iou = computeIOU(face, detection_box,img_bgr)
                     if iou > 0.1:
                         faces_tracked_idx.append(face_idx)
             else:
                 print('failed')
-
 
         # Create a new tracker for every face that isn't tracked
         for face_idx, face in enumerate(faces):
@@ -109,7 +112,7 @@ def main():
 
                 '''
                 List of trackers:
-                cv2.TrackerCSRT_create
+                cv2.TrackerCSRT_create - works
                 cv2.TrackerKCF_create
                 cv2.TrackerBoosting_create
                 cv2.TrackerMIL_creat,
@@ -117,12 +120,13 @@ def main():
                 cv2.TrackerMedianFlow_create
                 cv2.TrackerMOSSE_create
                 '''
-                tracker = cv2.TrackerKCF_create()
+                tracker = cv2.TrackerCSRT_create()
 
                 initBB = face
                 tracker.init(img_bgr, initBB)
-                trackers.append(tracker)
-
+                x,y,w,h = face
+                new_tracker = Tracker(tracker,initBB,img_bgr[y:y+h,x:x+w]," ")
+                trackers.append(new_tracker)
 
         # Visualization
         cv2.imshow('Frame', img_bgr)
