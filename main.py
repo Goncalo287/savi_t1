@@ -86,17 +86,24 @@ def saveTrackers(trackers):
     with open('templates/list.json', 'w') as file:
         json.dump(saved_templates, file, indent=4)
 
+    print('Saved {} trackers to disk'.format(len(saved_templates)))
+
 
 def loadTrackers():
-    with open('templates/list.json') as file:
-        saved_templates = json.load(file)
-    
+    try:
+        with open('templates/list.json') as file:
+            saved_templates = json.load(file)
+    except FileNotFoundError:
+        saved_templates = []
+
     trackers = []
     for tracker in saved_templates:
         img_template = cv2.imread(tracker['path'], cv2.IMREAD_GRAYSCALE)
-        new_tracker = Tracker(img_template, tracker['name'])
-        trackers.append(new_tracker)
+        if img_template is not None:
+            new_tracker = Tracker(img_template, tracker['name'])
+            trackers.append(new_tracker)
     
+    print('Loaded {}/{} trackers from disk'.format(len(trackers), len(saved_templates)))
     return trackers
 
 
@@ -232,11 +239,9 @@ def main():
         
         elif k == ord('s'):     # S to save trackers
             saveTrackers(trackers)
-            print('Trackers saved to disk')
 
         elif k == ord('l'):     # L to load trackers
             trackers = loadTrackers()
-            print('Trackers loaded from disk')
 
 
     # Destroy cv2 windows
