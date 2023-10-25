@@ -3,11 +3,24 @@
 import cv2
 import numpy as np
 import copy
+import tkinter as tk
 from tkinter import simpledialog
 import time
 import math
 
 from track import Tracker
+
+def openInputWindow():
+    '''
+    Opens a window where the user can input text
+    Returns a string or None (if the user cancels)
+    '''
+
+    root = tk.Tk()
+    root.withdraw()
+    user_input = simpledialog.askstring('Set template name', 'Person name:')
+    root.destroy()
+    return user_input
 
 
 def computeIOU(face_box, tracker_box):
@@ -156,7 +169,7 @@ def main():
 
             x, y, w, h = cv2.selectROI('Frame', img_bgr)
             if w * h > 100:
-                name = simpledialog.askstring('Set template name', 'Person name:')
+                name = openInputWindow()    # Open dialog box to input person's name
                 if name is not None and len(name)>0:
                     new_tracker = Tracker(img_gray[y:y+h, x:x+w], name)
                     trackers.append(new_tracker)
