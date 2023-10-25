@@ -3,22 +3,11 @@
 import cv2
 import numpy as np
 import copy
-import tkinter as tk
 from tkinter import simpledialog
+import time
+import math
 
 from track import Tracker
-
-def openInputWindow():
-    '''
-    Opens a window where the user can input text
-    Returns a string or None (if the user cancels)
-    '''
-
-    root = tk.Tk()
-    root.withdraw()
-    user_input = simpledialog.askstring('Set template name', 'Person name:')
-    root.destroy()
-    return user_input
 
 
 def computeIOU(face_box, tracker_box):
@@ -62,9 +51,10 @@ def main():
     # Initialization
     cap = cv2.VideoCapture(0)
     face_classifier = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-    templates = []  # TODO: open templates saved on disk (add image format to .gitignore)
     trackers = []
-
+    timeout = 5 # seconds
+    match_thresh = 0.6  # 0 -> 1
+    iou_thresh = 0.6    # 0 -> 1
 
 
     # Execution
@@ -83,36 +73,63 @@ def main():
 
         # Detect faces
         faces = face_classifier.detectMultiScale(image=img_gray, scaleFactor=1.2, minNeighbors=4, minSize=(70,70))
-        for x, y, w, h in faces:
-            cv2.rectangle(img_bgr, (x, y), (x+w, y+h), (255, 0, 0), 1)
 
 
         # Update trackers and compare with detected faces
         faces_tracked_idx = []
         for tracker in trackers:
-            res = cv2.matchTemplate(img_gray, tracker.img_latest, cv2.TM_CCOEFF_NORMED)
+            face_detected = False
 
+            # Template matching: find the tracker's saved template in the image
+            res = cv2.matchTemplate(img_gray, tracker.img_latest, cv2.TM_CCOEFF_NORMED)
             _, max_val, _, top_left = cv2.minMaxLoc(res)
 
-            if max_val > 0.7:
-                x, y, w, h = top_left[0], top_left[1], tracker.img_latest.shape[1], tracker.img_latest.shape[0]
 
-                for face_idx, face in enumerate(faces):
-                    iou = computeIOU(face, (x, y, w, h))
-
-                    if iou > 0.7:
-
-                        cv2.rectangle(img_bgr, (x, y), (x+w, y+h), (0,255,0), 3)
-                        cv2.putText(img_bgr, tracker.name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2, cv2.LINE_AA)
-
-                        x, y, w, h = face
-                        cv2.putText(img_bgr, str(round(iou*100))+"%", (x, y+h+30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2, cv2.LINE_AA)
-                        tracker.img_latest = img_gray[y:y+w, x:x+w]
-                        faces_tracked_idx.append(face_idx)
-                        break
+            # If the best match found isn't good enough, reset
+            if max_val < match_thresh:
+                tracker.reset()
+                continue
 
 
-        # Highlight unknown faces
+            # Save the best match's coordinates in (x, y, w, h) format: same as face detections
+            x, y, w, h = top_left[0], top_left[1], tracker.img_latest.shape[1], tracker.img_latest.shape[0]
+
+
+            # Go through all the detected faces and check if they match this template
+            for face_idx, face in enumerate(faces):
+
+                iou = computeIOU(face, (x, y, w, h))    # iou = intersection over union
+                if iou > iou_thresh:
+                    face_detected = True
+                    x, y, w, h = face
+                    faces_tracked_idx.append(face_idx)
+                    break   # Stop searching after the first hit to avoid finding multiple matching faces
+
+
+            # If a mathing face was found, (x, y, w, h) are the face's coordinates and, if not, they are the results
+            # of the template match. This allows the program to track people even when their face isn't detected.
+            tracker.img_latest = img_gray[y:y+h, x:x+w]
+
+
+            # If a matching face was found, reset the timer. If not, track the template for X seconds (timeout) and then reset.
+            if face_detected:
+                tracker.last_face_timestamp = time.time()
+                cv2.rectangle(img_bgr, (x, y), (x+w, y+h), (0,255,0), 3)
+                cv2.putText(img_bgr, str(round(iou*100))+'%', (x, y+h+30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2, cv2.LINE_AA)
+                cv2.putText(img_bgr, tracker.name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2, cv2.LINE_AA)
+
+            else:
+                # 'time_elapsed' counts down from from 'timeout' to 0
+                time_elapsed = timeout - (time.time() - tracker.last_face_timestamp)
+                if time_elapsed > 0:
+                    cv2.rectangle(img_bgr, (x, y), (x+w, y+h), (0,255,255), 3)
+                    cv2.putText(img_bgr, str(math.ceil(time_elapsed))+'s', (x, y+h+30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 2, cv2.LINE_AA)
+                    cv2.putText(img_bgr, tracker.name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 2, cv2.LINE_AA)
+                else:
+                    tracker.reset()
+
+
+        # If a detected face has no associated tracker, highlight is as an 'unknown' face
         unknown_faces = []
         for face_idx, face in enumerate(faces):
             if face_idx not in faces_tracked_idx:
@@ -121,11 +138,10 @@ def main():
                 cv2.putText(img_bgr, 'Unknown', (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2, cv2.LINE_AA)
                 unknown_faces.append(face)
 
-        print('Unknown faces:', len(unknown_faces))
-
 
         # Visualization
         cv2.imshow('Frame', img_bgr)
+        # TODO: 'data base' gallery view (with both original and updated templates)
 
 
         # Keyboard inputs
@@ -134,17 +150,22 @@ def main():
         if k == ord('q') or k == 27:    # Q or ESC to exit
             break
 
-        elif k == ord('s'):     # S to save current face as a template
+        elif k == ord('t'):     # T to create a new tracker
+
+            # TODO: Use this logic to create trackers with a mouse click
 
             x, y, w, h = cv2.selectROI('Frame', img_bgr)
-            name = openInputWindow()    # Open dialog box to input person's name
+            if w * h > 100:
+                name = simpledialog.askstring('Set template name', 'Person name:')
+                if name is not None and len(name)>0:
+                    new_tracker = Tracker(img_gray[y:y+h, x:x+w], name)
+                    trackers.append(new_tracker)
+                    print('Template saved:', name)
 
-            if name is not None and len(name)>0:
-
-                new_tracker = Tracker(img_gray[y:y+w, x:x+w], name)
-                trackers.append(new_tracker)
-
-                print('Template saved:', name)
+        elif k == ord('r'):     # R to refresh (use original image)
+            for tracker in trackers:
+                tracker.reset()
+            print('Trackers refreshed')
 
 
     # Destroy cv2 windows
