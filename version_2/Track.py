@@ -3,9 +3,10 @@ import numpy as np
 
 
 def computeIOU(d1, d2):
+    x,y,w,h = d2
     # box1 and box2 should be in the format (x1, y1, x2, y2)
-    x1_1, y1_1, x2_1, y2_1 = d1.left, d1.top, d1.right, d1.bottom
-    x1_2, y1_2, x2_2, y2_2 = d2.left, d2.top, d2.right, d2.bottom
+    x1_1, y1_1, x2_1, y2_1 = d1
+    x1_2, y1_2, x2_2, y2_2 = x,y,x+w,y+h
     
     # Calculate the area of the first bounding box
     area1 = (x2_1 - x1_1) * (y2_1 - y1_1)
@@ -32,64 +33,18 @@ def computeIOU(d1, d2):
         return iou
     else:
         return 0.0
-    
-class Detection():
-    def __init__(self,left,right,top,bottom,id,stamp,image):
-        self.detection_id = id
-        self.left = left
-        self.right = right
-        self.top = top
-        self.bottom = bottom
-        self.time_stamp = stamp
-        self.img_detection = image[self.top:self.bottom,self.left:self.right]
 
-    def draw(self,img,color,draw_position='bottom',text=None):
-        start_point = (self.left,self.top)
-        end_point = (self.right,self.bottom)
+class Tracker():
+    def __init__(self, img_original,img_last,name,x,y,w,h):
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
+        self.img_original = img_original
+        self.name = name
+        self.img_last=img_last
 
-        # draw rectangle around face
-        cv2.rectangle(img,start_point,end_point,color,2)
-
-        # identify face detected
-        if text is None:
-            text = 'Det ' + self.detection_id
-
-        if draw_position == 'bottom':
-            position = (self.left,self.bottom+30)
-        else:
-            position = (self.left,self.top-10)  
-
-        cv2.putText(img, text,position, cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
-        
-
-class Track:
-    def __init__(self,id,detection,color = (255,0,0)): # definition of class constructor
-        self.track_id = id
-        self.detections = [detection]
-        self.active = True
-        self.color = color
-
-        
     def draw(self,image):
-        
-        #Draw only last detection
-        self.detections[-1].draw(image,self.color, text='Person: ' + self.track_id,draw_position='top')
-
-
-
-        #left, right, top, bottom = self.detections[-1]
-
-        # cv2.rectangle(image,(left,top),(right,bottom),(255,0,0),2)
-        # image = cv2.putText(image,'Person: ' + str(self._trackid),(left,top-10),cv2.FONT_HERSHEY_SIMPLEX,0.7,(255,0,0),2,cv2.LINE_AA)
-
-    def track():
-        print('a')
-        # function to do the template mactching using self.detections[-1].img_detection !!!
-        # use img_gray to match 
-
-
-
-    def update(self,detection):
-        
-        self.detections.append(detection)
-
+        start_point = (self.x,self.y)
+        end_point = (self.x+self.w,self.y+self.h)
+        cv2.rectangle(image,start_point,end_point,(0,0,255),2)

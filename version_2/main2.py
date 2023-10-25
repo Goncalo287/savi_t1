@@ -1,14 +1,14 @@
 # import libraries
 import cv2
 import copy
-from Track import Detection, Track, computeIOU
+from Track import Tracker, computeIOU
 from random import randint
 import numpy as np
 
 import tkinter as tk
 from tkinter import simpledialog
 
-
+trackers = []
 
 def main():
     
@@ -31,7 +31,7 @@ def main():
     desactivate_threshold = 1
     iou_threshold = 0.2
     avgs = []
-
+    idx_face_to_remove = []
     while cap.isOpened():
 
         # read image
@@ -57,95 +57,55 @@ def main():
         # -----
         # Detect faces 
         # -----
-        haar_face_detections = detector.detectMultiScale(img_gray, scaleFactor=1.05, minNeighbors=5,
+        faces = detector.detectMultiScale(img_gray, scaleFactor=1.05, minNeighbors=5,
                                             minSize=(70, 70), flags=cv2.CASCADE_SCALE_IMAGE)
-
-        # -----
-        # Create list of detections
-        # -----   
-
         
-        detection_idx = 0
-        for x,y,w,h in haar_face_detections:
-            detection_id=str(frame_number) + '-' + str(detection_idx)
-            detection = Detection(x, x+w ,y ,y+h , detection_id,frame_stamp,img_gray)
-            detections.append(detection)
-            detection_idx += 1
-
-        all_detections = copy.deepcopy(detections)
-
         
-        idxs_detections_to_remove = []
-        for idx_detection, detection in enumerate(detections):
-            for track in tracks:
-                if not track.active:
-                    continue
-                # ----------------
-                # Using distance between centers
-                # ----------------
-                # How to measure hoe close a detection is to a tracker?
-                # distance = math.sqrt((detection.cx-track.detections[-1].cx)**2+
-                #                      (detection.cx-track.detections[-1].cx)**2)
+        # template matching of trackers
+        # trackers =  list of images
+        for track in trackers:
+            h,w = track.img_original.shape
+            res = cv2.matchTemplate(img_gray,track.img_original,cv2.TM_CCOEFF_NORMED)
+            min_val, max_val,min_loc,max_loc = cv2.minMaxLoc(res)
 
-                # if distance < distance_threshold: # this detection is this tracker!!
-                #     track.update(detection) # add detection to tracker
-                #     idxs_detections_to_remove.append(idx_detection)
-                #     break # do not test this detection with any other track
+            x,y = max_loc
+            print(max_val)
 
-                # ----------------
-                # Using IOU
-                # ----------------
-                iou = computeIOU(detection, track.detections[-1])
-                #print('IOU( ' + detection.detection_id + ' , ' + track.track_id + ') = ' + str(iou))
-                if iou > iou_threshold: # This detection belongs to this tracker!!!
-                    track.update(detection) # add detection to track
-                    idxs_detections_to_remove.append(idx_detection)
-                    break # do not test this detection with any other track
+            # it only compares if max_val > 0.8
+            if max_val > 0.5:
+                for face_idx,face in enumerate(faces):
+                # compare resulting image from matching template with a face detection
+                    img_compare = (x,x+w,y,y+h) # left, right, top, bottom
+                    iou = computeIOU(img_compare, face)
+                    #print('IOU( ' + detection.detection_id + ' , ' + track.track_id + ') = ' + str(iou))
+                    if iou > iou_threshold: # it means that the detection correspond to a known tracker
+                        # correspond detection to tracker
+                        # update tracker
+                        track.img_last = img_gray[x:x+w,y:y+h]
+                        # remove faces
+                        idx_face_to_remove.append(face_idx)
 
+        idx_face_to_remove.reverse
+        # remove faces to remove 
+        for idx in idx_face_to_remove:
+            del(faces[idx])
+                
+        print('faces:' + str(len(faces)))
 
-        idxs_detections_to_remove.reverse()
-        for idx in idxs_detections_to_remove:
-            del detections[idx]
-
-
-        # -----
-        # Create new trackers
-        # -----
-
-        for detection in detections:
-            
-            color = [randint(0,255),randint(0,255),randint(0,255)]         
-
-            track = Track(str(person_count),detection,color=color)
-            tracks.append(track)
+        # create new tracker
+        for face in faces:
+            x,y,w,h = face
+            cv2.rectangle(img_gui,(x,y),(x+w,y+h),(255,0,0),2)
+            img_original = img_gray[x:x+w,y:y+h]
+            name = "Person" + str(person_count)
+            tracker = Tracker(img_original,img_original,name,x,y,w,h)
+            trackers.append(tracker)
             person_count += 1
 
+        print(len(trackers))
 
-
-        # --------------------------------------
-        # Desactivate trackers if last detection has been seen a long time ago
-        # --------------------------------------
-        for track  in tracks:
-            time_since_last_detection = frame_stamp - track.detections[-1].time_stamp
-            if time_since_last_detection > desactivate_threshold:
-                track.active = False
-                track.color = [75,75,75]
-
-        # ---
-        # See if track as a detection associated - if not use track()
-        # ---
-
-        # draw list of detections
-        for detection in all_detections:
-            detection.draw(img_gui,(0,0,255))
-
-        # draw list of tracks
-        for track in tracks:
-            if not track.active:
-                continue
+        for track in trackers:
             track.draw(img_gui)
-
-
     # -----
     # Vizualisation
     # -----
@@ -155,7 +115,7 @@ def main():
 
         # show video
         cv2.imshow('GUI',img_gui)
-        if cv2.waitKey(25) & 0xFF == ord('q') :
+        if cv2.waitKey(0) & 0xFF == ord('q') :
             break
 
         frame_number += 1

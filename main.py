@@ -56,18 +56,41 @@ def computeIOU(face_box, tracker_box):
         return iou
     else:
         return 0.0
+    
+def mouseCallback(event,x1,y1,flags,param):
+    global trackers
+    
+    if event == cv2.EVENT_LBUTTONUP:
+        for face in unknown_faces:
+            x,y,w,h = face
+            if x < x1 < (x+w) and y < y1 < (y+h): # mouse in detection
+                # create template and define track id
+                if w * h > 100:
+                    name = openInputWindow()    # Open dialog box to input person's name
+                    if name is not None and len(name)>0:
+                        new_tracker = Tracker(img_gray[y:y+h, x:x+w], name)
+                        trackers.append(new_tracker)
+                        print('Template saved:', name)
+                    break
 
 
+
+trackers = []
+img_gray = None
+unknown_faces = []
 
 def main():
-
+    global unknown_faces, img_gray, trackers
     # Initialization
     cap = cv2.VideoCapture(0)
     face_classifier = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-    trackers = []
+
     timeout = 5 # seconds
     match_thresh = 0.6  # 0 -> 1
     iou_thresh = 0.6    # 0 -> 1
+
+    cv2.namedWindow('Frame')
+    cv2.setMouseCallback('Frame',mouseCallback)
 
 
     # Execution
