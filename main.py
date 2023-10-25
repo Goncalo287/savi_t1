@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import simpledialog
 import time
 import math
+import json
 
 from track import Tracker
 
@@ -56,7 +57,8 @@ def computeIOU(face_box, tracker_box):
         return iou
     else:
         return 0.0
-    
+
+
 def mouseCallback(event,x1,y1,flags,param):
     global trackers
     
@@ -74,10 +76,37 @@ def mouseCallback(event,x1,y1,flags,param):
                     break
 
 
+def saveTrackers(trackers):
+    saved_templates = []
+    for idx, tracker in enumerate(trackers):
+        img_path = 'templates/template_' + str(idx) + '.png'
+        cv2.imwrite(img_path, tracker.img_original)
+        saved_templates.append({'name': tracker.name, 'path': img_path})
 
+    with open('templates/list.json', 'w') as file:
+        json.dump(saved_templates, file, indent=4)
+
+
+def loadTrackers():
+    with open('templates/list.json') as file:
+        saved_templates = json.load(file)
+    
+    trackers = []
+    for tracker in saved_templates:
+        img_template = cv2.imread(tracker['path'], cv2.IMREAD_GRAYSCALE)
+        new_tracker = Tracker(img_template, tracker['name'])
+        trackers.append(new_tracker)
+    
+    return trackers
+
+
+
+# Global variables
 trackers = []
+# trackers = loadTrackers()
 img_gray = None
 unknown_faces = []
+
 
 def main():
     global unknown_faces, img_gray, trackers
@@ -188,8 +217,6 @@ def main():
 
         elif k == ord('t'):     # T to create a new tracker
 
-            # TODO: Use this logic to create trackers with a mouse click
-
             x, y, w, h = cv2.selectROI('Frame', img_bgr)
             if w * h > 100:
                 name = openInputWindow()    # Open dialog box to input person's name
@@ -202,6 +229,14 @@ def main():
             for tracker in trackers:
                 tracker.reset()
             print('Trackers refreshed')
+        
+        elif k == ord('s'):     # S to save trackers
+            saveTrackers(trackers)
+            print('Trackers saved to disk')
+
+        elif k == ord('l'):     # L to load trackers
+            trackers = loadTrackers()
+            print('Trackers loaded from disk')
 
 
     # Destroy cv2 windows
