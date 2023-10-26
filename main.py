@@ -10,6 +10,7 @@ import math
 import json
 import pyttsx3 
 import threading
+import subprocess
 
 from track import Tracker
 
@@ -110,9 +111,13 @@ def loadTrackers():
 
 def sayHello(name):
    engine = pyttsx3.init()
+   voice = engine.getProperty('voices') #get the available voices
+   # eng.setProperty('voice', voice[0].id) #set the voice to index 0 for male voice
+   engine.setProperty('voice', voice[2].id) #changing voice to index 1 for female voice
    engine.say('Hello ' + name + '!')
    engine.say('How are you today?')
    engine.runAndWait()
+
 
 
 
@@ -214,14 +219,14 @@ def main():
             else:
                 # 'time_elapsed' counts down from from 'timeout' to 0
                 time_elapsed = timeout - (time.time() - tracker.last_face_timestamp)
-                tracker.asBeenGreeted = False
+                
                 if time_elapsed > 0:
                     cv2.rectangle(img_bgr, (x, y), (x+w, y+h), (0,255,255), 3)
                     cv2.putText(img_bgr, str(math.ceil(time_elapsed))+'s', (x, y+h+30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 2, cv2.LINE_AA)
                     cv2.putText(img_bgr, tracker.name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 2, cv2.LINE_AA)
                 else:
                     tracker.reset()
-      
+                    tracker.asBeenGreeted = False
 
 
         # If a detected face has no associated tracker, highlight is as an 'unknown' face
@@ -266,10 +271,11 @@ def main():
         elif k == ord('l'):     # L to load trackers
             trackers = loadTrackers()
 
-
+    #thread.join()
     # Destroy cv2 windows
     cap.release()
     cv2.destroyAllWindows()
+
 
 
 if __name__ == '__main__':
