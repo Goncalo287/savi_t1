@@ -73,7 +73,7 @@ def mouseCallback(event,x1,y1,flags,param):
                 if w * h > 100:
                     name = openInputWindow()    # Open dialog box to input person's name
                     if name is not None and len(name)>0:
-                        new_tracker = Tracker(img_gray[y:y+h, x:x+w], name,asBeenGreeted = False)
+                        new_tracker = Tracker(img_gray[y:y+h, x:x+w], name)
                         trackers.append(new_tracker)
                         print('Template saved:', name)
                     break
@@ -105,9 +105,10 @@ def loadTrackers():
         if img_template is not None:
             new_tracker = Tracker(img_template, tracker['name'])
             trackers.append(new_tracker)
-    
+
     print('Loaded {}/{} trackers from disk'.format(len(trackers), len(saved_templates)))
     return trackers
+
 
 def sayHello(name):
    engine = pyttsx3.init()
@@ -119,31 +120,62 @@ def sayHello(name):
    engine.runAndWait()
 
 
+def updateGallery(img_gallery, trackers):
+
+    h = 150
+    w = 150
+    img_gallery.fill(255)
+    row = 0
+    col = 0
+
+    for tracker in trackers:
+        img_template = cv2.resize(tracker.img_original, (h, w), interpolation = cv2.INTER_AREA)
+        img_template = cv2.cvtColor(img_template, cv2.COLOR_GRAY2BGR)
+
+        img_gallery[col*h:col*h+h,row*w:row*w+w] = img_template
+        cv2.putText(img_gallery, tracker.name, (row*w+10, h+col*h-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,250,0), 2, cv2.LINE_AA)
+
+        row += 1
+        if row > 3:
+            row = 0
+            col += 1
+        if col > 3:
+            break
+
+    return img_gallery
 
 
 # Global variables
 trackers = []
 # trackers = loadTrackers()
 img_gray = None
+img_gallery = np.zeros((600, 600, 3), dtype=np.uint8)
+img_gallery.fill(255)
 unknown_faces = []
 
 
 def main():
-    global unknown_faces, img_gray, trackers
+    global unknown_faces, img_gray, img_gallery, trackers
+
     # Initialization
     cap = cv2.VideoCapture(0)
     face_classifier = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 
-    timeout = 5 # seconds
+    timeout = 5         # seconds
     match_thresh = 0.6  # 0 -> 1
     iou_thresh = 0.6    # 0 -> 1
-
-    cv2.namedWindow('Frame')
-    cv2.setMouseCallback('Frame',mouseCallback)
 
     engine = pyttsx3.init()
 
     tts_triggered = False  # Flag to control TTS activation
+
+    # Create opencv windows
+    cv2.namedWindow('Frame')
+    cv2.moveWindow('Frame', 100, 100)
+    cv2.setMouseCallback('Frame', mouseCallback)
+
+    cv2.namedWindow('Database')
+    cv2.moveWindow('Database', 800, 100)
 
 
     # Execution
@@ -206,10 +238,10 @@ def main():
             # If a matching face was found, reset the timer. If not, track the template for X seconds (timeout) and then reset.
             if face_detected:
                 # Say hi to known faces
-                if tracker.asBeenGreeted == False:
-                    thread = threading.Thread(target=sayHello,args = (tracker.name,))
+                if tracker.hasBeenGreeted == False:
+                    thread = threading.Thread(target=sayHello, args=(tracker.name,))
                     thread.start()
-                    tracker.asBeenGreeted = True
+                    tracker.hasBeenGreeted = True
 
                 tracker.last_face_timestamp = time.time()
                 cv2.rectangle(img_bgr, (x, y), (x+w, y+h), (0,255,0), 3)
@@ -226,7 +258,7 @@ def main():
                     cv2.putText(img_bgr, tracker.name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 2, cv2.LINE_AA)
                 else:
                     tracker.reset()
-                    tracker.asBeenGreeted = False
+                    tracker.hasBeenGreeted = False
 
 
         # If a detected face has no associated tracker, highlight is as an 'unknown' face
@@ -241,7 +273,8 @@ def main():
 
         # Visualization
         cv2.imshow('Frame', img_bgr)
-        # TODO: 'data base' gallery view (with both original and updated templates)
+        img_gallery = updateGallery(img_gallery, trackers)
+        cv2.imshow('Database', img_gallery)
 
 
         # Keyboard inputs
@@ -271,7 +304,7 @@ def main():
         elif k == ord('l'):     # L to load trackers
             trackers = loadTrackers()
 
-    #thread.join()
+    thread.join()
     # Destroy cv2 windows
     cap.release()
     cv2.destroyAllWindows()
