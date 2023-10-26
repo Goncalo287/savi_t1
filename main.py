@@ -111,9 +111,8 @@ def loadTrackers():
     return trackers
 
 
-def sayHello(name):
-   
-    tts = gTTS('Hello ' + name + '! How are you today?')
+def sayHello(text):
+    tts = gTTS(text)
     speech_file = 'greet_file.mp3'
     tts.save(speech_file)
     os.system('ffplay -v 0 -nodisp -autoexit ' + speech_file)
@@ -153,6 +152,7 @@ img_gallery.fill(255)
 unknown_faces = []
 
 
+
 def main():
     global unknown_faces, img_gray, img_gallery, trackers
 
@@ -166,16 +166,18 @@ def main():
 
 
     # Create opencv windows
-    cv2.namedWindow('Frame')
-    cv2.moveWindow('Frame', 100, 100)
-    cv2.setMouseCallback('Frame', mouseCallback)
+    cv2.namedWindow('Face detector')
+    cv2.moveWindow('Face detector', 100, 100)
+    cv2.setMouseCallback('Face detector', mouseCallback)
 
     cv2.namedWindow('Database')
     cv2.moveWindow('Database', 800, 100)
-
+    hello_str = " "
+    hello_time = 0
 
     # Execution
     while cap.isOpened():
+
 
         ret, frame = cap.read()
         if ret is False:
@@ -235,7 +237,9 @@ def main():
             if face_detected:
                 # Say hi to known faces
                 if tracker.hasBeenGreeted == False:
-                    thread = threading.Thread(target=sayHello, args=(tracker.name,))
+                    hello_str = 'Hello ' + tracker.name + '! How are you today?'
+                    hello_time = time.time()
+                    thread = threading.Thread(target=sayHello, args=(hello_str,))
                     thread.start()
                     tracker.hasBeenGreeted = True
 
@@ -243,6 +247,7 @@ def main():
                 cv2.rectangle(img_bgr, (x, y), (x+w, y+h), tracker.color, 3)
                 cv2.putText(img_bgr, str(round(iou*100))+'%', (x, y+h+30), cv2.FONT_HERSHEY_SIMPLEX, 1, tracker.color, 2, cv2.LINE_AA)
                 cv2.putText(img_bgr, tracker.name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, tracker.color, 2, cv2.LINE_AA)
+                tracker.active = True
 
             else:
                 # 'time_elapsed' counts down from from 'timeout' to 0
@@ -254,7 +259,9 @@ def main():
                     cv2.putText(img_bgr, tracker.name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 2, cv2.LINE_AA)
                 else:
                     tracker.reset()
+                    tracker.active = False
                     tracker.hasBeenGreeted = False
+
 
 
         # If a detected face has no associated tracker, highlight is as an 'unknown' face
@@ -266,9 +273,17 @@ def main():
                 cv2.putText(img_bgr, 'Unknown', (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2, cv2.LINE_AA)
                 unknown_faces.append(face)
 
+        active_trackers = [x for x in trackers if x.active]
+
+        if time.time() - hello_time > 5:
+            hello_str = " "
 
         # Visualization
-        cv2.imshow('Frame', img_bgr)
+        cv2.putText(img_bgr,'Unknown faces: ' + str(len(unknown_faces)),(0,475),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2,cv2.LINE_AA) # show unknown faces
+        cv2.putText(img_bgr,'Known faces: ' + str(len(active_trackers)),(0,450),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2,cv2.LINE_AA) # show known faces
+        textsize=cv2.getTextSize(hello_str,cv2.FONT_HERSHEY_SIMPLEX,1,2)[0]
+        cv2.putText(img_bgr,hello_str,(int((img_bgr.shape[1]-textsize[0])/2),50),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2,cv2.LINE_AA) # show known faces
+        cv2.imshow('Face detector', img_bgr)
         img_gallery = updateGallery(img_gallery, trackers)
         cv2.imshow('Database', img_gallery)
 
@@ -281,7 +296,7 @@ def main():
 
         elif k == ord('t'):     # T to create a new tracker
 
-            x, y, w, h = cv2.selectROI('Frame', img_bgr)
+            x, y, w, h = cv2.selectROI('Face detector', img_bgr)
             if w * h > 100:
                 name = openInputWindow()    # Open dialog box to input person's name
                 if name is not None and len(name)>0:
