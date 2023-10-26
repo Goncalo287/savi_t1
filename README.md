@@ -18,7 +18,6 @@ $ python3 main.py
 ```console
 $ sudo apt-get install python3-opencv
 $ sudo apt-get install python3-tk
-$ sudo apt install espeak ffmpeg libespeak1
-$ pip install pyttsx3
+$ pip install gTTS
 ```
 

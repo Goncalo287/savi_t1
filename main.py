@@ -10,7 +10,8 @@ import math
 import json
 import pyttsx3 
 import threading
-import subprocess
+from gtts import gTTS
+import os
 
 from track import Tracker
 
@@ -111,13 +112,11 @@ def loadTrackers():
 
 
 def sayHello(name):
-   engine = pyttsx3.init()
-   voice = engine.getProperty('voices') #get the available voices
-   # eng.setProperty('voice', voice[0].id) #set the voice to index 0 for male voice
-   engine.setProperty('voice', voice[2].id) #changing voice to index 1 for female voice
-   engine.say('Hello ' + name + '!')
-   engine.say('How are you today?')
-   engine.runAndWait()
+   
+    tts = gTTS('Hello ' + name + '! How are you today?')
+    speech_file = 'greet_file.mp3'
+    tts.save(speech_file)
+    os.system('ffplay -v 0 -nodisp -autoexit ' + speech_file)
 
 
 def updateGallery(img_gallery, trackers):
@@ -165,9 +164,6 @@ def main():
     match_thresh = 0.6  # 0 -> 1
     iou_thresh = 0.6    # 0 -> 1
 
-    engine = pyttsx3.init()
-
-    tts_triggered = False  # Flag to control TTS activation
 
     # Create opencv windows
     cv2.namedWindow('Frame')
