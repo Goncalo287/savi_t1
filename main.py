@@ -8,6 +8,8 @@ from tkinter import simpledialog
 import time
 import math
 import json
+import pyttsx3 
+import threading
 
 from track import Tracker
 
@@ -70,7 +72,7 @@ def mouseCallback(event,x1,y1,flags,param):
                 if w * h > 100:
                     name = openInputWindow()    # Open dialog box to input person's name
                     if name is not None and len(name)>0:
-                        new_tracker = Tracker(img_gray[y:y+h, x:x+w], name)
+                        new_tracker = Tracker(img_gray[y:y+h, x:x+w], name,asBeenGreeted = False)
                         trackers.append(new_tracker)
                         print('Template saved:', name)
                     break
@@ -106,6 +108,12 @@ def loadTrackers():
     print('Loaded {}/{} trackers from disk'.format(len(trackers), len(saved_templates)))
     return trackers
 
+def sayHello(name):
+   engine = pyttsx3.init()
+   engine.say('Hello ' + name + '!')
+   engine.say('How are you today?')
+   engine.runAndWait()
+
 
 
 # Global variables
@@ -127,6 +135,10 @@ def main():
 
     cv2.namedWindow('Frame')
     cv2.setMouseCallback('Frame',mouseCallback)
+
+    engine = pyttsx3.init()
+
+    tts_triggered = False  # Flag to control TTS activation
 
 
     # Execution
@@ -151,6 +163,9 @@ def main():
         faces_tracked_idx = []
         for tracker in trackers:
             face_detected = False
+
+            
+
 
             # Template matching: find the tracker's saved template in the image
             res = cv2.matchTemplate(img_gray, tracker.img_latest, cv2.TM_CCOEFF_NORMED)
@@ -185,6 +200,12 @@ def main():
 
             # If a matching face was found, reset the timer. If not, track the template for X seconds (timeout) and then reset.
             if face_detected:
+                # Say hi to known faces
+                if tracker.asBeenGreeted == False:
+                    thread = threading.Thread(target=sayHello,args = (tracker.name,))
+                    thread.start()
+                    tracker.asBeenGreeted = True
+
                 tracker.last_face_timestamp = time.time()
                 cv2.rectangle(img_bgr, (x, y), (x+w, y+h), (0,255,0), 3)
                 cv2.putText(img_bgr, str(round(iou*100))+'%', (x, y+h+30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2, cv2.LINE_AA)
@@ -193,12 +214,14 @@ def main():
             else:
                 # 'time_elapsed' counts down from from 'timeout' to 0
                 time_elapsed = timeout - (time.time() - tracker.last_face_timestamp)
+                tracker.asBeenGreeted = False
                 if time_elapsed > 0:
                     cv2.rectangle(img_bgr, (x, y), (x+w, y+h), (0,255,255), 3)
                     cv2.putText(img_bgr, str(math.ceil(time_elapsed))+'s', (x, y+h+30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 2, cv2.LINE_AA)
                     cv2.putText(img_bgr, tracker.name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 2, cv2.LINE_AA)
                 else:
                     tracker.reset()
+      
 
 
         # If a detected face has no associated tracker, highlight is as an 'unknown' face
