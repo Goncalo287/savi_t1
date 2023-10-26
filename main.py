@@ -240,9 +240,9 @@ def main():
                     tracker.hasBeenGreeted = True
 
                 tracker.last_face_timestamp = time.time()
-                cv2.rectangle(img_bgr, (x, y), (x+w, y+h), (0,255,0), 3)
-                cv2.putText(img_bgr, str(round(iou*100))+'%', (x, y+h+30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2, cv2.LINE_AA)
-                cv2.putText(img_bgr, tracker.name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2, cv2.LINE_AA)
+                cv2.rectangle(img_bgr, (x, y), (x+w, y+h), tracker.color, 3)
+                cv2.putText(img_bgr, str(round(iou*100))+'%', (x, y+h+30), cv2.FONT_HERSHEY_SIMPLEX, 1, tracker.color, 2, cv2.LINE_AA)
+                cv2.putText(img_bgr, tracker.name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, tracker.color, 2, cv2.LINE_AA)
 
             else:
                 # 'time_elapsed' counts down from from 'timeout' to 0
