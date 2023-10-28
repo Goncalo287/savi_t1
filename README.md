@@ -10,7 +10,7 @@ CAROLINA OLIVEIRA FRANCISCO - 98303
 
 ## Introduction
 
-A python program using OpenCV to detect and track speficic people in the camera. Includes a gallery of saved templates and other features that improve usability.
+A python program using OpenCV to detect and track specific people in the camera. Includes a gallery of saved templates and other features that improve usability.
 
 
 
