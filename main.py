@@ -85,7 +85,7 @@ def mouseCallback(event,x1,y1,flags,param):
 
 def saveTrackers(trackers):
     '''
-    Save the templates as PNG images, 'list.png' stores the name associated with each image
+    Save the templates as PNG images, 'list.json' stores the name associated with each image
     '''
 
     saved_templates = []
@@ -102,7 +102,7 @@ def saveTrackers(trackers):
 
 def loadTrackers():
     '''
-    Create new trackers from the PNG images, using 'list.png' to get the name of each tracker
+    Create new trackers from the PNG images, using 'list.json' to get the name of each tracker
     '''
 
     try:
@@ -170,43 +170,64 @@ def sayHello(text):
         os.system('ffplay -v 0 -nodisp -autoexit ' + speech_file)
 
 
-def updateGallery(img_gallery, trackers):
+def updateGallery(trackers):
 
     h = 150
     w = 150
+    rows = 2
+    cols = 6
+
+    rows *= 2
+    img_gallery = np.zeros((rows * h, cols * w, 3), dtype=np.uint8)
     img_gallery.fill(255)
+    font = cv2.FONT_HERSHEY_SIMPLEX
     row = 0
     col = 0
 
     for tracker in trackers:
-        img_template = cv2.resize(tracker.img_original, (h, w), interpolation = cv2.INTER_AREA)
-        img_template = cv2.cvtColor(img_template, cv2.COLOR_GRAY2BGR)
+        img_original = cv2.resize(tracker.img_original, (w, h), interpolation = cv2.INTER_AREA)
+        img_original = cv2.cvtColor(img_original, cv2.COLOR_GRAY2BGR)
 
-        img_gallery[col*h:col*h+h,row*w:row*w+w] = img_template
-        cv2.putText(img_gallery, tracker.name, (row*w+10, h+col*h-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,250,0), 2, cv2.LINE_AA)
+        img_latest = cv2.resize(tracker.img_latest, (w, h), interpolation = cv2.INTER_AREA)
+        img_latest = cv2.cvtColor(img_latest, cv2.COLOR_GRAY2BGR)
 
-        row += 1
-        if row > 3:
-            row = 0
-            col += 1
-        if col > 3:
+        y = row * h
+        x = col * w
+        img_gallery[y:y+h,x:x+w] = img_original
+
+        y = (row + 1) * h
+        img_gallery[y:y+h,x:x+w] = img_latest
+
+        if tracker.active: color = tracker.color
+        else: color = (10,10,10)
+        textsize = cv2.getTextSize(tracker.name,font,1,2)[0]
+        textpos = int(x+w/2-textsize[0]/2)
+        cv2.putText(img_gallery, tracker.name, (textpos, y+5), font, 1, color, 2, cv2.LINE_AA)
+
+        col += 1
+        if col >= cols:
+            col = 0
+            row += 2
+        if row >= rows:
             break
 
     return img_gallery
+
+
+def nothing(_):
+    pass
 
 
 # Global variables
 trackers = []
 # trackers = loadTrackers()     # Uncomment to load saved trackers automatically
 img_gray = None
-img_gallery = np.zeros((600, 600, 3), dtype=np.uint8)
-img_gallery.fill(255)
 unknown_faces = []
 
 
 
 def main():
-    global unknown_faces, img_gray, img_gallery, trackers
+    global unknown_faces, img_gray, trackers
 
     # ----------------------------
     #       Initialization
@@ -235,6 +256,7 @@ def main():
 
     cv2.namedWindow('Database')
     cv2.moveWindow('Database', 800, 100)
+    cv2.createTrackbar('Timeout (s)', 'Database', timeout, 30, nothing)
 
 
     # ----------------------------
@@ -252,6 +274,8 @@ def main():
         img_bgr = copy.deepcopy(frame)
         img_bgr = cv2.flip(img_bgr,1) # mirror image
         img_gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+
+        timeout = cv2.getTrackbarPos('Timeout (s)', 'Database')
 
 
         # Detect faces
@@ -312,12 +336,12 @@ def main():
                 tracker.active = True
 
             else:
-                # 'time_elapsed' counts down from from 'timeout' to 0
-                time_elapsed = timeout - (time.time() - tracker.last_face_timestamp)
-                
-                if time_elapsed > 0:
+                # 'time_left' counts down from from 'timeout' to 0
+                time_left = timeout - (time.time() - tracker.last_face_timestamp)
+
+                if time_left > 0:
                     cv2.rectangle(img_bgr, (x, y), (x+w, y+h), (0,255,255), 3)
-                    cv2.putText(img_bgr, str(math.ceil(time_elapsed))+'s', (x, y+h+30), font, 1, (0,255,255), 2, cv2.LINE_AA)
+                    cv2.putText(img_bgr, str(math.ceil(time_left))+'s', (x, y+h+30), font, 1, (0,255,255), 2, cv2.LINE_AA)
                     cv2.putText(img_bgr, tracker.name, (x, y-10), font, 1, (0,255,255), 2, cv2.LINE_AA)
                 else:
                     tracker.reset()
@@ -342,14 +366,14 @@ def main():
         active_trackers = [x for x in trackers if x.active]
         # Visualization
         cv2.putText(img_bgr,'Unknown faces: ' + str(len(unknown_faces)),(0,475),font,1,(0,0,255),2,cv2.LINE_AA) # show unknown faces
-        cv2.putText(img_bgr,'Known faces: ' + str(len(active_trackers)),(0,450),font,1,(0,0,255),2,cv2.LINE_AA) # show known faces
+        cv2.putText(img_bgr,'Active trackers: ' + str(len(active_trackers)),(0,450),font,1,(0,0,255),2,cv2.LINE_AA) # show known faces
         textsize=cv2.getTextSize(hello_str,font,1,2)[0]
         cv2.putText(img_bgr,hello_str,(int((img_bgr.shape[1]-textsize[0])/2),50),font,1,(0,0,255),2,cv2.LINE_AA) # show TTS text
 
 
         # Update windows
         cv2.imshow('Face detector', img_bgr)
-        img_gallery = updateGallery(img_gallery, trackers)
+        img_gallery = updateGallery(trackers)
         cv2.imshow('Database', img_gallery)
 
 
