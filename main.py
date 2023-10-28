@@ -8,7 +8,6 @@ from tkinter import simpledialog
 import time
 import math
 import json
-import pyttsx3 
 import threading
 from gtts import gTTS
 import os
@@ -29,6 +28,10 @@ def openInputWindow():
 
 
 def computeIOU(face_box, tracker_box):
+    '''
+    Both inputs should follow the format (x, y, w, h)
+    Returns the 'Intersection Over Union' of the 2 areas ( 0 < IOU < 1 )
+    '''
 
     x, y, w, h = face_box
     x1_1, y1_1, x2_1, y2_1 = x, y, x+w, y+h
@@ -65,8 +68,8 @@ def computeIOU(face_box, tracker_box):
 
 def mouseCallback(event,x1,y1,flags,param):
     global trackers
-    
-    if event == cv2.EVENT_LBUTTONUP:
+
+    if event == cv2.EVENT_LBUTTONUP:    # Left Button Up (end of a click)
         for face in unknown_faces:
             x,y,w,h = face
             if x < x1 < (x+w) and y < y1 < (y+h): # mouse in detection
@@ -81,6 +84,10 @@ def mouseCallback(event,x1,y1,flags,param):
 
 
 def saveTrackers(trackers):
+    '''
+    Save the templates as PNG images, 'list.png' stores the name associated with each image
+    '''
+
     saved_templates = []
     for idx, tracker in enumerate(trackers):
         img_path = 'templates/template_' + str(idx) + '.png'
@@ -94,6 +101,10 @@ def saveTrackers(trackers):
 
 
 def loadTrackers():
+    '''
+    Create new trackers from the PNG images, using 'list.png' to get the name of each tracker
+    '''
+
     try:
         with open('templates/list.json') as file:
             saved_templates = json.load(file)
@@ -112,10 +123,51 @@ def loadTrackers():
 
 
 def sayHello(text):
-    tts = gTTS(text)
-    speech_file = 'greet_file.mp3'
-    tts.save(speech_file)
-    os.system('ffplay -v 0 -nodisp -autoexit ' + speech_file)
+    '''
+    Uses gTTS to play the string in 'text' (needs internet to generate new ones)
+    Saves generated MP3 files in 'audio/' to reduce the amount of requests to gTTS
+    'audio/list.json' stores information about which MP3 files correspond to which 'text'
+    '''
+
+    # Get the dictionary where the keys are the 'text' said and the values are the path to the MP3 files
+    try:
+        with open('audio/list.json') as file:
+            saved_dict = json.load(file)
+    except FileNotFoundError:
+        saved_dict = {}
+
+    # If list.json already contains this 'text', use that file instead of generating a new one
+    if text in saved_dict.keys() and os.path.exists(saved_dict[text]):  # Check if MP3 file exists
+        speech_file = saved_dict[text]
+        success = True
+        print('TTS: Found an existing audio file:', speech_file)
+
+    # IF list.json doesn't contain this 'text', generate it with gTTS
+    else:
+        speech_file = 'audio/greeting_' + str(len(saved_dict.keys())+1) + '.mp3'
+        print('TTS: Generating a new audio file:', speech_file)
+
+        try:
+            # Generate Text to Speech (this fails if there is no internet connection)
+            tts = gTTS(text)
+            tts.save(speech_file)
+
+            # Add this to the list of saved audios (list.json)
+            saved_dict[text] = speech_file
+            with open('audio/list.json', 'w') as file:
+                json.dump(saved_dict, file, indent=4)
+
+            success = True
+
+        # If something went wrong, print the error
+        except Exception as e:
+            print('TTS: Error while generating:', e)
+            success = False
+
+    # Play the audio
+    if success:
+        print('TTS: Playing...', text)
+        os.system('ffplay -v 0 -nodisp -autoexit ' + speech_file)
 
 
 def updateGallery(img_gallery, trackers):
@@ -145,7 +197,7 @@ def updateGallery(img_gallery, trackers):
 
 # Global variables
 trackers = []
-# trackers = loadTrackers()
+# trackers = loadTrackers()     # Uncomment to load saved trackers automatically
 img_gray = None
 img_gallery = np.zeros((600, 600, 3), dtype=np.uint8)
 img_gallery.fill(255)
@@ -156,28 +208,40 @@ unknown_faces = []
 def main():
     global unknown_faces, img_gray, img_gallery, trackers
 
-    # Initialization
+    # ----------------------------
+    #       Initialization
+    # ----------------------------
+
+    # OpenCV
     cap = cv2.VideoCapture(0)
     face_classifier = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+    font = cv2.FONT_HERSHEY_SIMPLEX
 
+    # Tracking parameters & TTS
     timeout = 5         # seconds
     match_thresh = 0.6  # 0 -> 1
     iou_thresh = 0.6    # 0 -> 1
+    hello_str = " "
+    hello_time = 0
 
+    # Create folders used to store files
+    if not os.path.exists('templates'): os.makedirs('templates')
+    if not os.path.exists('audio'): os.makedirs('audio')
 
-    # Create opencv windows
+    # Create OpenCV windows
     cv2.namedWindow('Face detector')
     cv2.moveWindow('Face detector', 100, 100)
     cv2.setMouseCallback('Face detector', mouseCallback)
 
     cv2.namedWindow('Database')
     cv2.moveWindow('Database', 800, 100)
-    hello_str = " "
-    hello_time = 0
 
-    # Execution
+
+    # ----------------------------
+    #          Execution
+    # ----------------------------
+
     while cap.isOpened():
-
 
         ret, frame = cap.read()
         if ret is False:
@@ -198,8 +262,6 @@ def main():
         faces_tracked_idx = []
         for tracker in trackers:
             face_detected = False
-
-            
 
 
             # Template matching: find the tracker's saved template in the image
@@ -245,8 +307,8 @@ def main():
 
                 tracker.last_face_timestamp = time.time()
                 cv2.rectangle(img_bgr, (x, y), (x+w, y+h), tracker.color, 3)
-                cv2.putText(img_bgr, str(round(iou*100))+'%', (x, y+h+30), cv2.FONT_HERSHEY_SIMPLEX, 1, tracker.color, 2, cv2.LINE_AA)
-                cv2.putText(img_bgr, tracker.name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, tracker.color, 2, cv2.LINE_AA)
+                cv2.putText(img_bgr, str(round(iou*100))+'%', (x, y+h+30), font, 1, tracker.color, 2, cv2.LINE_AA)
+                cv2.putText(img_bgr, tracker.name, (x, y-10), font, 1, tracker.color, 2, cv2.LINE_AA)
                 tracker.active = True
 
             else:
@@ -255,13 +317,12 @@ def main():
                 
                 if time_elapsed > 0:
                     cv2.rectangle(img_bgr, (x, y), (x+w, y+h), (0,255,255), 3)
-                    cv2.putText(img_bgr, str(math.ceil(time_elapsed))+'s', (x, y+h+30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 2, cv2.LINE_AA)
-                    cv2.putText(img_bgr, tracker.name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 2, cv2.LINE_AA)
+                    cv2.putText(img_bgr, str(math.ceil(time_elapsed))+'s', (x, y+h+30), font, 1, (0,255,255), 2, cv2.LINE_AA)
+                    cv2.putText(img_bgr, tracker.name, (x, y-10), font, 1, (0,255,255), 2, cv2.LINE_AA)
                 else:
                     tracker.reset()
                     tracker.active = False
                     tracker.hasBeenGreeted = False
-
 
 
         # If a detected face has no associated tracker, highlight is as an 'unknown' face
@@ -270,19 +331,23 @@ def main():
             if face_idx not in faces_tracked_idx:
                 x, y, w, h = face
                 cv2.rectangle(img_bgr, (x, y), (x+w, y+h), (0,0,255), 3)
-                cv2.putText(img_bgr, 'Unknown', (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2, cv2.LINE_AA)
+                cv2.putText(img_bgr, 'Unknown', (x, y-10), font, 1, (0,0,255), 2, cv2.LINE_AA)
                 unknown_faces.append(face)
 
-        active_trackers = [x for x in trackers if x.active]
 
-        if time.time() - hello_time > 5:
+        # More information on the screen
+        if time.time() - hello_time > 4:
             hello_str = " "
 
+        active_trackers = [x for x in trackers if x.active]
         # Visualization
-        cv2.putText(img_bgr,'Unknown faces: ' + str(len(unknown_faces)),(0,475),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2,cv2.LINE_AA) # show unknown faces
-        cv2.putText(img_bgr,'Known faces: ' + str(len(active_trackers)),(0,450),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2,cv2.LINE_AA) # show known faces
-        textsize=cv2.getTextSize(hello_str,cv2.FONT_HERSHEY_SIMPLEX,1,2)[0]
-        cv2.putText(img_bgr,hello_str,(int((img_bgr.shape[1]-textsize[0])/2),50),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2,cv2.LINE_AA) # show known faces
+        cv2.putText(img_bgr,'Unknown faces: ' + str(len(unknown_faces)),(0,475),font,1,(0,0,255),2,cv2.LINE_AA) # show unknown faces
+        cv2.putText(img_bgr,'Known faces: ' + str(len(active_trackers)),(0,450),font,1,(0,0,255),2,cv2.LINE_AA) # show known faces
+        textsize=cv2.getTextSize(hello_str,font,1,2)[0]
+        cv2.putText(img_bgr,hello_str,(int((img_bgr.shape[1]-textsize[0])/2),50),font,1,(0,0,255),2,cv2.LINE_AA) # show TTS text
+
+
+        # Update windows
         cv2.imshow('Face detector', img_bgr)
         img_gallery = updateGallery(img_gallery, trackers)
         cv2.imshow('Database', img_gallery)
@@ -315,7 +380,13 @@ def main():
         elif k == ord('l'):     # L to load trackers
             trackers = loadTrackers()
 
-    thread.join()
+
+    # If no tackers detected a face, 'thread' is undefined
+    try:
+        thread.join()
+    except Exception:
+        print('TTS: failed to join thread')
+
     # Destroy cv2 windows
     cap.release()
     cv2.destroyAllWindows()
