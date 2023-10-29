@@ -13,9 +13,8 @@ class Tracker():
         self.img_latest = img_original
         self.last_face_timestamp = time.time()
         self.hasBeenGreeted = False
-        self.color = (randint(0, 255), randint(0, 255), randint(0, 255))
+        self.color = (randint(0, 255), randint(0, 255), randint(0, 100))
         self.active = True
 
     def reset(self):
         self.img_latest = self.img_original
-        

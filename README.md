@@ -10,7 +10,7 @@ CAROLINA OLIVEIRA FRANCISCO - 98303
 
 ## Introduction
 
-A python program using OpenCV to detect and track specific people in the camera. Includes a gallery of saved templates and other features that improve usability.
+A python program that uses OpenCV to detect and track specific people in the camera. Includes a gallery of saved templates and other features that improve usability.
 
 
 
@@ -22,6 +22,7 @@ A python program using OpenCV to detect and track specific people in the camera.
 - Handles tracking of multiple people simultaneously
 - Ability to save and load tracking templates
 - Saved templates can be viewed in a separate window, updated in real-time
+- Buttons in the templates window to easily manage trackers
 - Recognized faces are greeted using Google Text-to-Speech
 - Audio files created with gTTS are stored, allowing offline use
 - Unknown faces can be easily identified by clicking on them
@@ -53,9 +54,9 @@ $ python3 main.py
 | Q | Exit the program (ESC) |
 | T | Create a tracker from a region (an alternative to mouse click) |
 | R | Reset trackers to their original template |
+| C | Clear trackers |
 | S | Save trackers to disk |
 | L | Load trackers from disk |
-
 
 
 ## Dependencies

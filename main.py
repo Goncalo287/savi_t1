@@ -170,20 +170,57 @@ def sayHello(text):
         os.system('ffplay -v 0 -nodisp -autoexit ' + speech_file)
 
 
+def mouseCbGallery(event,x,y,flags,param):
+    global trackers
+
+    if event == cv2.EVENT_LBUTTONUP:
+        if y > 60:
+            return
+        
+        if 20 < x < 120:
+            saveTrackers(trackers)
+
+        elif 150 < x < 250:
+            trackers = loadTrackers()
+
+        elif 280 < x < 380:
+            trackers = []
+
+        elif 410 < x < 510:
+            for tracker in trackers:
+                tracker.reset()
+            print('Trackers refreshed')
+
+
 def updateGallery(trackers):
 
     h = 150
     w = 150
     rows = 2
-    cols = 6
+    cols = 5
+    bar_height = 60
 
     rows *= 2
-    img_gallery = np.zeros((rows * h, cols * w, 3), dtype=np.uint8)
+    img_gallery = np.zeros((rows * h + bar_height, cols * w, 3), dtype=np.uint8)
     img_gallery.fill(255)
     font = cv2.FONT_HERSHEY_SIMPLEX
     row = 0
     col = 0
 
+
+    # Toolbar
+    img_gallery[0:bar_height,:] = (44,44,44)
+    img_gallery[10:bar_height-10, 20:120] = (0,200,0)
+    cv2.putText(img_gallery, 'SAVE', (37, bar_height-20), font, 0.8, (0,0,0), 2, cv2.LINE_AA)
+    img_gallery[10:bar_height-10, 150:250] = (200,100,100)
+    cv2.putText(img_gallery, 'LOAD', (168, bar_height-20), font, 0.8, (0,0,0), 2, cv2.LINE_AA)
+    img_gallery[10:bar_height-10, 280:380] = (100,100,200)
+    cv2.putText(img_gallery, 'CLEAR', (290, bar_height-20), font, 0.8, (0,0,0), 2, cv2.LINE_AA)
+    img_gallery[10:bar_height-10, 410:510] = (100,100,200)
+    cv2.putText(img_gallery, 'RESET', (420, bar_height-20), font, 0.8, (0,0,0), 2, cv2.LINE_AA)
+
+
+    # Tracker gallery
     for tracker in trackers:
         img_original = cv2.resize(tracker.img_original, (w, h), interpolation = cv2.INTER_AREA)
         img_original = cv2.cvtColor(img_original, cv2.COLOR_GRAY2BGR)
@@ -191,11 +228,11 @@ def updateGallery(trackers):
         img_latest = cv2.resize(tracker.img_latest, (w, h), interpolation = cv2.INTER_AREA)
         img_latest = cv2.cvtColor(img_latest, cv2.COLOR_GRAY2BGR)
 
-        y = row * h
+        y = row * h + bar_height
         x = col * w
         img_gallery[y:y+h,x:x+w] = img_original
 
-        y = (row + 1) * h
+        y = (row + 1) * h + bar_height
         img_gallery[y:y+h,x:x+w] = img_latest
 
         if tracker.active: color = tracker.color
@@ -242,7 +279,7 @@ def main():
     timeout = 5         # seconds
     match_thresh = 0.6  # 0 -> 1
     iou_thresh = 0.6    # 0 -> 1
-    hello_str = " "
+    hello_str = ''
     hello_time = 0
 
     # Create folders used to store files
@@ -257,6 +294,7 @@ def main():
     cv2.namedWindow('Database')
     cv2.moveWindow('Database', 800, 100)
     cv2.createTrackbar('Timeout (s)', 'Database', timeout, 30, nothing)
+    cv2.setMouseCallback('Database', mouseCbGallery)
 
 
     # ----------------------------
@@ -359,16 +397,32 @@ def main():
                 unknown_faces.append(face)
 
 
-        # More information on the screen
-        if time.time() - hello_time > 4:
-            hello_str = " "
+
+        # ----------------------------
+        #       Visualization
+        # ----------------------------
+
+        # Add a bar at the bottom with stats
+        img_bottom = np.zeros((40, img_bgr.shape[1], 3), dtype=np.uint8)
+        img_bottom.fill(44)
+        img_bgr = cv2.vconcat([img_bgr, img_bottom])
 
         active_trackers = [x for x in trackers if x.active]
-        # Visualization
-        cv2.putText(img_bgr,'Unknown faces: ' + str(len(unknown_faces)),(0,475),font,1,(0,0,255),2,cv2.LINE_AA) # show unknown faces
-        cv2.putText(img_bgr,'Active trackers: ' + str(len(active_trackers)),(0,450),font,1,(0,0,255),2,cv2.LINE_AA) # show known faces
-        textsize=cv2.getTextSize(hello_str,font,1,2)[0]
-        cv2.putText(img_bgr,hello_str,(int((img_bgr.shape[1]-textsize[0])/2),50),font,1,(0,0,255),2,cv2.LINE_AA) # show TTS text
+        cv2.putText(img_bgr,'Unknown faces: ' + str(len(unknown_faces)),(20,img_bgr.shape[0]-12),font,0.8,(255,255,255),1,cv2.LINE_AA) # show unknown faces
+        cv2.putText(img_bgr,'Active trackers: ' + str(len(active_trackers)),(380,img_bgr.shape[0]-12),font,0.8,(255,255,255),1,cv2.LINE_AA) # show known faces
+
+
+        # Greeting text
+        if time.time() - hello_time > 3.6:
+            hello_str = ''
+
+        if len(hello_str) > 0:
+            textsize = cv2.getTextSize(hello_str,font,1,2)[0]
+            text_x = int((img_bgr.shape[1]-textsize[0])/2)
+            text_y = 50
+            text_border = 10
+            cv2.rectangle(img_bgr, (text_x-text_border, text_y+text_border), (text_x+textsize[0]+text_border, text_y-textsize[1]-text_border), (44,44,44), -1)
+            cv2.putText(img_bgr,hello_str,(text_x,text_y),font,1,(255,255,255),2,cv2.LINE_AA) # show TTS text
 
 
         # Update windows
@@ -377,7 +431,10 @@ def main():
         cv2.imshow('Database', img_gallery)
 
 
-        # Keyboard inputs
+        # ----------------------------
+        #          Keybinds
+        # ----------------------------
+
         k = cv2.waitKey(1) & 0xFF
 
         if k == ord('q') or k == 27:    # Q or ESC to exit
@@ -404,6 +461,8 @@ def main():
         elif k == ord('l'):     # L to load trackers
             trackers = loadTrackers()
 
+        elif k == ord('c'):     # C to clear trackers
+            trackers = []
 
     # If no tackers detected a face, 'thread' is undefined
     try:
