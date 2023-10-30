@@ -67,6 +67,12 @@ def computeIOU(face_box, tracker_box):
 
 
 def mouseCallback(event,x1,y1,flags,param):
+    
+    '''
+    Creates a template of face detection clicked on
+    A pop-up window that allows to give a name to the template appears
+    '''
+    
     global trackers
 
     if event == cv2.EVENT_LBUTTONUP:    # Left Button Up (end of a click)
@@ -171,6 +177,10 @@ def sayHello(text):
 
 
 def mouseCbGallery(event,x,y,flags,param):
+    '''
+    Mouse events that allow to save, load and reset trackers
+    (Buttons)
+    '''
     global trackers
 
     if event == cv2.EVENT_LBUTTONUP:
@@ -193,6 +203,10 @@ def mouseCbGallery(event,x,y,flags,param):
 
 
 def updateGallery(trackers):
+
+    '''
+    Definition of gallery window (toolbar and template rows)
+    '''
 
     h = 150
     w = 150
@@ -374,7 +388,7 @@ def main():
                 tracker.active = True
 
             else:
-                # 'time_left' counts down from from 'timeout' to 0
+                # 'time_left' counts down from 'timeout' to 0
                 time_left = timeout - (time.time() - tracker.last_face_timestamp)
 
                 if time_left > 0:
